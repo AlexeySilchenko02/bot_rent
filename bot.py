@@ -20,11 +20,13 @@ def get_places_info():
         places = cursor.fetchall()
     return places
 
+#Основные кнопки
 def make_reply_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
     places_button = KeyboardButton("Получить информацию о местах")
     rentals_button = KeyboardButton("Мои аренды")
-    markup.add(places_button, rentals_button)
+    feedback_button = KeyboardButton("Обратная связь")  # Новая кнопка для обратной связи
+    markup.add(places_button, rentals_button, feedback_button)
     return markup
 
 # Обработчик команды /start
@@ -42,17 +44,20 @@ def handle_message(message):
         request_phone_number(message)
     elif message.text == "Вернуться назад":
         send_welcome(message)
+    elif message.text == "Обратная связь":
+        request_feedback(message)
     else:
         bot.send_message(message.chat.id, "Извините, я не понял команду.")
 
+#Кнопки которые будут вызваны после активации "Мои аренды"
 def request_phone_number(message):
-    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)  # Изменим one_time_keyboard на False
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
     contact_button = KeyboardButton("Поделиться номером телефона", request_contact=True)
     back_button = KeyboardButton("Вернуться назад")
-    markup.add(contact_button, back_button)  # Добавляем кнопку "Вернуться назад"
+    markup.add(contact_button, back_button)
     bot.send_message(message.chat.id, "Пожалуйста, поделитесь вашим номером телефона для получения информации об аренде.", reply_markup=markup)
 
-# Функция отправки информации о местах, без изменений      
+# Функция отправки информации о местах    
 def send_places_info(message):
     places = get_places_info()
     if places:
@@ -118,6 +123,39 @@ def send_user_rentals(message, user_id):
         bot.send_message(message.chat.id, reply, parse_mode='HTML')
     else:
         bot.send_message(message.chat.id, "У вас нет текущих аренд или все аренды истекли.")
+
+#Обработка кнопки "Обратная связь"
+@bot.message_handler(func=lambda message: message.text == "Обратная связь")
+def request_feedback(message):
+    msg = bot.send_message(message.chat.id, "Пожалуйста, введите ваше имя:")
+    bot.register_next_step_handler(msg, process_name_step)
+
+def process_name_step(message):
+    name = message.text
+    msg = bot.send_message(message.chat.id, "Введите вашу почту:")
+    bot.register_next_step_handler(msg, process_email_step, name)
+
+def process_email_step(message, name):
+    email = message.text
+    msg = bot.send_message(message.chat.id, "Введите ваше сообщение:")
+    bot.register_next_step_handler(msg, process_message_step, name, email)
+
+def process_message_step(message, name, email):
+    feedback_message = message.text
+    save_feedback(name, email, feedback_message)
+    bot.send_message(message.chat.id, "Спасибо за ваше сообщение! Мы свяжемся с вами.")
+
+#Отправка сообщения в БД
+def save_feedback(name, email, message):
+    with pyodbc.connect(CONNECTION_STRING) as conn:
+        subject = "ТГ БОТ"
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO [db_aa7919_rent].[dbo].[Feedbacks] ([Name], [Email], [Subject], [Message], [Status])
+            VALUES (?, ?, ?, ?, '0')
+        """, (name, email,subject, message))
+        conn.commit()
+
 
 # Запуск бота
 bot.infinity_polling()
