@@ -31,24 +31,26 @@ def make_reply_keyboard():
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     markup = make_reply_keyboard()
-    bot.reply_to(message, "Привет! Используй кнопку ниже, чтобы получить информацию о местах.", reply_markup=markup)
+    bot.reply_to(message, "Привет! Используй кнопки ниже.", reply_markup=markup)
 
 # Обработчик текстовых сообщений для обработки нажатий кнопок клавиатуры
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     if message.text == "Получить информацию о местах":
         send_places_info(message)
-    elif message.text == "Мои аренды":  # Обработка запроса "Мои аренды"
+    elif message.text == "Мои аренды":
         request_phone_number(message)
+    elif message.text == "Вернуться назад":
+        send_welcome(message)
     else:
         bot.send_message(message.chat.id, "Извините, я не понял команду.")
 
 def request_phone_number(message):
-    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)  # Изменим one_time_keyboard на False
     contact_button = KeyboardButton("Поделиться номером телефона", request_contact=True)
-    markup.add(contact_button)
+    back_button = KeyboardButton("Вернуться назад")
+    markup.add(contact_button, back_button)  # Добавляем кнопку "Вернуться назад"
     bot.send_message(message.chat.id, "Пожалуйста, поделитесь вашим номером телефона для получения информации об аренде.", reply_markup=markup)
-
 
 # Функция отправки информации о местах, без изменений      
 def send_places_info(message):
@@ -72,7 +74,7 @@ def send_places_info(message):
     else:
         bot.send_message(message.chat.id, "Информация о местах отсутствует.")
 
-
+#Получение мест аренды для данного номера телефона
 @bot.message_handler(content_types=['contact'])
 def handle_contact(message):
     phone_number = message.contact.phone_number
@@ -82,6 +84,7 @@ def handle_contact(message):
     else:
         bot.send_message(message.chat.id, "Извините, мы не смогли найти аренды для данного номера телефона.")
 
+#Поиск пользователя в бд
 def get_user_id_by_phone(phone_number):
     phone_number = phone_number.lstrip('+')
     with pyodbc.connect(CONNECTION_STRING) as conn:
@@ -94,7 +97,7 @@ def get_user_id_by_phone(phone_number):
         result = cursor.fetchone()
     return result[0] if result else None
 
-
+#Получение списка мест пользователя из БД
 def send_user_rentals(message, user_id):
     with pyodbc.connect(CONNECTION_STRING) as conn:
         cursor = conn.cursor()
