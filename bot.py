@@ -156,7 +156,7 @@ def save_feedback(name, email, subject, message):
     with pyodbc.connect(CONNECTION_STRING) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO [db_aa7919_rent].[dbo].[Feedbacks] ([Name], [Email], [Subject], [Message], [Platform], [Status])
+            INSERT INTO [db_aa7919_aplicationrent].[dbo].[Feedbacks] ([Name], [Email], [Subject], [Message], [Platform], [Status])
             VALUES (?, ?, ?, ?, ?, '0')
         """, (name, email, subject, message, platform))
         conn.commit()
