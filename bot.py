@@ -137,25 +137,29 @@ def process_name_step(message):
 
 def process_email_step(message, name):
     email = message.text
-    msg = bot.send_message(message.chat.id, "Введите ваше сообщение:")
-    bot.register_next_step_handler(msg, process_message_step, name, email)
+    msg = bot.send_message(message.chat.id, "Введите тему вашего сообщения:")
+    bot.register_next_step_handler(msg, process_subject_step, name, email)
 
-def process_message_step(message, name, email):
+def process_subject_step(message, name, email):
+    subject = message.text
+    msg = bot.send_message(message.chat.id, "Введите ваше сообщение:")
+    bot.register_next_step_handler(msg, process_message_step, name, email, subject)
+
+def process_message_step(message, name, email, subject):
     feedback_message = message.text
-    save_feedback(name, email, feedback_message)
+    save_feedback(name, email, subject, feedback_message)
     bot.send_message(message.chat.id, "Спасибо за ваше сообщение! Мы свяжемся с вами.")
 
 #Отправка сообщения в БД
-def save_feedback(name, email, message):
+def save_feedback(name, email, subject, message):
+    platform = "ТГ Бот"
     with pyodbc.connect(CONNECTION_STRING) as conn:
-        subject = "ТГ БОТ"
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO [db_aa7919_aplicationrent].[dbo].[Feedbacks] ([Name], [Email], [Subject], [Message], [Status])
-            VALUES (?, ?, ?, ?, '0')
-        """, (name, email,subject, message))
+            INSERT INTO [db_aa7919_rent].[dbo].[Feedbacks] ([Name], [Email], [Subject], [Message], [Platform], [Status])
+            VALUES (?, ?, ?, ?, ?, '0')
+        """, (name, email, subject, message, platform))
         conn.commit()
-
 
 # Запуск бота
 bot.infinity_polling()
