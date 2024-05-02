@@ -7,7 +7,7 @@ TOKEN = '7002641960:AAGFGouyZOs57f_1XczDXwSxSHwEIf3IYXI'
 bot = telebot.TeleBot(TOKEN)
 
 # Строка подключения к базе данных
-CONNECTION_STRING = "Driver={SQL Server};Server=SQL9001.site4now.net;Database=db_aa7919_rent;Uid=db_aa7919_rent_admin;Pwd=Alex2356;"
+CONNECTION_STRING = "Driver={SQL Server};Server=SQL9001.site4now.net;Database=db_aa7919_aplicationrent;Uid=db_aa7919_aplicationrent_admin;Pwd=Alex2356;"
 
 # Функция для извлечения информации из таблицы Place
 def get_places_info():
@@ -15,7 +15,7 @@ def get_places_info():
         cursor = conn.cursor()
         cursor.execute("""
             SELECT TOP (1000) [Id], [Name], [StartRent], [EndRent], [InRent], [Price], [Description], [SizePlace]
-            FROM [db_aa7919_rent].[data].[Place]
+            FROM [db_aa7919_aplicationrent].[data].[Place]
         """)
         places = cursor.fetchall()
     return places
@@ -96,7 +96,7 @@ def get_user_id_by_phone(phone_number):
         cursor = conn.cursor()
         # Пытаемся найти номер с "+" и без него
         cursor.execute("""
-            SELECT [Id] FROM [db_aa7919_rent].[dbo].[AspNetUsers]
+            SELECT [Id] FROM [db_aa7919_aplicationrent].[dbo].[AspNetUsers]
             WHERE REPLACE([PhoneNumber], '+', '') = ?
         """, phone_number)
         result = cursor.fetchone()
@@ -108,8 +108,8 @@ def send_user_rentals(message, user_id):
         cursor = conn.cursor()
         cursor.execute("""
             SELECT p.[Name], r.[StartRent], r.[EndRent], p.[SizePlace], p.[Price]
-            FROM [db_aa7919_rent].[dbo].[Rentals] r
-            JOIN [db_aa7919_rent].[data].[Place] p ON r.[PlaceId] = p.[Id]
+            FROM [db_aa7919_aplicationrent].[dbo].[Rentals] r
+            JOIN [db_aa7919_aplicationrent].[data].[Place] p ON r.[PlaceId] = p.[Id]
             WHERE r.[UserId] = ? AND r.[EndRent] >= GETDATE()
         """, user_id)
         rentals = cursor.fetchall()
@@ -151,7 +151,7 @@ def save_feedback(name, email, message):
         subject = "ТГ БОТ"
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO [db_aa7919_rent].[dbo].[Feedbacks] ([Name], [Email], [Subject], [Message], [Status])
+            INSERT INTO [db_aa7919_aplicationrent].[dbo].[Feedbacks] ([Name], [Email], [Subject], [Message], [Status])
             VALUES (?, ?, ?, ?, '0')
         """, (name, email,subject, message))
         conn.commit()
