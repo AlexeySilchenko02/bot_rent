@@ -3,30 +3,43 @@ import pyodbc
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
 # Токен, который выдал BotFather
-TOKEN = '7002641960:AAGFGouyZOs57f_1XczDXwSxSHwEIf3IYXI'
+TOKEN = '7057353634:AAGGWWGGAmcczpSLUj2_DP7TtCVWOnMH9rM'
 bot = telebot.TeleBot(TOKEN)
 
 # Строка подключения к базе данных
 CONNECTION_STRING = "Driver={SQL Server};Server=SQL9001.site4now.net;Database=db_aa7919_aplicationrent;Uid=db_aa7919_aplicationrent_admin;Pwd=Alex2356;"
+
+# Словарь для хранения состояния пользователей
+user_states = {}
 
 # Функция для извлечения информации из таблицы Place
 def get_places_info():
     with pyodbc.connect(CONNECTION_STRING) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT TOP (1000) [Id], [Name], [StartRent], [EndRent], [InRent], [Price], [Description], [SizePlace]
+            SELECT TOP (1000) [Id], [Name], [StartRent], [EndRent], [InRent], [Price], [Description], [SizePlace], [Category]
             FROM [db_aa7919_aplicationrent].[data].[Place]
         """)
         places = cursor.fetchall()
     return places
 
-#Основные кнопки
+# Основные кнопки
 def make_reply_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
-    places_button = KeyboardButton("Получить информацию о местах")
-    rentals_button = KeyboardButton("Мои аренды")
-    feedback_button = KeyboardButton("Обратная связь")  # Новая кнопка для обратной связи
-    markup.add(places_button, rentals_button, feedback_button)
+    places_button = KeyboardButton("Места")  # Переименовываем кнопку
+    personal_account_button = KeyboardButton("Личный кабинет")
+    feedback_button = KeyboardButton("Обратная связь")
+    markup.add(places_button, personal_account_button, feedback_button)
+    return markup
+
+# Кнопки для личного кабинета
+def make_personal_account_keyboard():
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
+    balance_button = KeyboardButton("Посмотреть баланс")
+    transactions_button = KeyboardButton("Посмотреть транзакции")
+    my_rentals_button = KeyboardButton("Мои аренды")  # Добавляем кнопку "Мои аренды"
+    back_button = KeyboardButton("Вернуться назад")
+    markup.add(balance_button, transactions_button, my_rentals_button, back_button)
     return markup
 
 # Обработчик команды /start
@@ -38,18 +51,24 @@ def send_welcome(message):
 # Обработчик текстовых сообщений для обработки нажатий кнопок клавиатуры
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    if message.text == "Получить информацию о местах":
+    if message.text == "Места":
         send_places_info(message)
-    elif message.text == "Мои аренды":
+    elif message.text == "Личный кабинет":
         request_phone_number(message)
     elif message.text == "Вернуться назад":
         send_welcome(message)
     elif message.text == "Обратная связь":
         request_feedback(message)
+    elif message.text == "Посмотреть баланс":
+        send_balance_info(message)
+    elif message.text == "Посмотреть транзакции":
+        send_transactions_info(message)
+    elif message.text == "Мои аренды":
+        send_rentals_info(message)
     else:
         bot.send_message(message.chat.id, "Извините, я не понял команду.")
 
-#Кнопки которые будут вызваны после активации "Мои аренды"
+# Кнопки которые будут вызваны после активации "Личный кабинет"
 def request_phone_number(message):
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
     contact_button = KeyboardButton("Поделиться номером телефона", request_contact=True)
@@ -57,12 +76,24 @@ def request_phone_number(message):
     markup.add(contact_button, back_button)
     bot.send_message(message.chat.id, "Пожалуйста, поделитесь вашим номером телефона для получения информации об аренде.", reply_markup=markup)
 
+# Обработка номера телефона и отображение кнопок "Посмотреть баланс", "Посмотреть транзакции" и "Мои аренды"
+@bot.message_handler(content_types=['contact'])
+def handle_contact(message):
+    phone_number = message.contact.phone_number
+    user_id = get_user_id_by_phone(phone_number)
+    if user_id:
+        user_states[message.chat.id] = {'phone_number': phone_number, 'user_id': user_id}
+        markup = make_personal_account_keyboard()
+        bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
+    else:
+        bot.send_message(message.chat.id, "Извините, мы не смогли найти аренды для данного номера телефона.")
+
 # Функция отправки информации о местах    
 def send_places_info(message):
     places = get_places_info()
     if places:
         # Создание заголовка таблицы
-        reply = "<b>Название места - Статус - Размер - Цена</b>\n"
+        reply = "<b>Название места - Статус - Размер - Цена - Категория</b>\n"
         for place in places:
             # Определение статуса места
             if place[4]:  # Если InRent == True
@@ -73,23 +104,13 @@ def send_places_info(message):
                 status = "Свободно"
             
             # Добавление информации о месте в ответ
-            reply += f"{place[1]} - {status} - {place[7]} м² - {place[5]} руб.\n"
+            reply += f"{place[1]} - {status} - {place[7]} м² - {place[5]} руб. - {place[8]}\n"
         
         bot.send_message(message.chat.id, reply, parse_mode='HTML')
     else:
         bot.send_message(message.chat.id, "Информация о местах отсутствует.")
 
-#Получение мест аренды для данного номера телефона
-@bot.message_handler(content_types=['contact'])
-def handle_contact(message):
-    phone_number = message.contact.phone_number
-    user_id = get_user_id_by_phone(phone_number)
-    if user_id:
-        send_user_rentals(message, user_id)
-    else:
-        bot.send_message(message.chat.id, "Извините, мы не смогли найти аренды для данного номера телефона.")
-
-#Поиск пользователя в бд
+# Функция для получения ID пользователя по номеру телефона
 def get_user_id_by_phone(phone_number):
     phone_number = phone_number.lstrip('+')
     with pyodbc.connect(CONNECTION_STRING) as conn:
@@ -102,29 +123,77 @@ def get_user_id_by_phone(phone_number):
         result = cursor.fetchone()
     return result[0] if result else None
 
-#Получение списка мест пользователя из БД
-def send_user_rentals(message, user_id):
-    with pyodbc.connect(CONNECTION_STRING) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT p.[Name], r.[StartRent], r.[EndRent], p.[SizePlace], p.[Price]
-            FROM [db_aa7919_aplicationrent].[dbo].[Rentals] r
-            JOIN [db_aa7919_aplicationrent].[data].[Place] p ON r.[PlaceId] = p.[Id]
-            WHERE r.[UserId] = ? AND r.[EndRent] >= GETDATE()
-        """, user_id)
-        rentals = cursor.fetchall()
-    
-    if rentals:
-        reply = "<b>Ваши актуальные аренды:</b>\n"
-        for rental in rentals:
-            start_date = rental[1].split(' ')[0]
-            end_date = rental[2].split(' ')[0]
-            reply += f"{rental[0]} - Занято с {start_date} по {end_date} - {rental[3]} м² - {rental[4]} руб.\n"
-        bot.send_message(message.chat.id, reply, parse_mode='HTML')
+# Функция для отправки информации о балансе пользователя
+def send_balance_info(message):
+    user_state = user_states.get(message.chat.id)
+    if user_state:
+        user_id = user_state['user_id']
+        with pyodbc.connect(CONNECTION_STRING) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT [Balance] FROM [db_aa7919_aplicationrent].[dbo].[AspNetUsers]
+                WHERE [Id] = ?
+            """, user_id)
+            result = cursor.fetchone()
+        if result:
+            bot.send_message(message.chat.id, f"Ваш баланс: {result[0]} руб.")
+        else:
+            bot.send_message(message.chat.id, "Извините, не удалось получить баланс.")
     else:
-        bot.send_message(message.chat.id, "У вас нет текущих аренд или все аренды истекли.")
+        bot.send_message(message.chat.id, "Извините, не удалось найти пользователя.")
 
-#Обработка кнопки "Обратная связь"
+# Функция для отправки информации о транзакциях пользователя
+def send_transactions_info(message):
+    user_state = user_states.get(message.chat.id)
+    if user_state:
+        user_id = user_state['user_id']
+        with pyodbc.connect(CONNECTION_STRING) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT [Amount], [TransactionDate] FROM [db_aa7919_aplicationrent].[dbo].[TransactionHistories]
+                WHERE [UserId] = ?
+                ORDER BY [TransactionDate] DESC
+            """, user_id)
+            transactions = cursor.fetchall()
+        if transactions:
+            reply = "<b>Ваши транзакции:</b>\n"
+            for transaction in transactions:
+                date = transaction[1].split(' ')[0]  # Используем строковое представление даты
+                reply += f"{date}: {transaction[0]} руб.\n"
+            bot.send_message(message.chat.id, reply, parse_mode='HTML')
+        else:
+            bot.send_message(message.chat.id, "У вас нет транзакций.")
+    else:
+        bot.send_message(message.chat.id, "Извините, не удалось найти пользователя.")
+
+# Функция для отправки информации о текущих арендах пользователя
+def send_rentals_info(message):
+    user_state = user_states.get(message.chat.id)
+    if user_state:
+        user_id = user_state['user_id']
+        with pyodbc.connect(CONNECTION_STRING) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT p.[Name], r.[StartRent], r.[EndRent], p.[Price]
+                FROM [db_aa7919_aplicationrent].[dbo].[Rentals] r
+                JOIN [db_aa7919_aplicationrent].[data].[Place] p ON r.[PlaceId] = p.[Id]
+                WHERE r.[UserId] = ? AND r.[EndRent] > GETDATE()
+                ORDER BY r.[StartRent] DESC
+            """, user_id)
+            rentals = cursor.fetchall()
+        if rentals:
+            reply = "<b>Ваши аренды:</b>\n"
+            for rental in rentals:
+                start_date = rental[1].split(' ')[0]  # Используем строковое представление даты
+                end_date = rental[2].split(' ')[0]  # Используем строковое представление даты
+                reply += f"{rental[0]} - С {start_date} по {end_date} - {rental[3]} руб.\n"
+            bot.send_message(message.chat.id, reply, parse_mode='HTML')
+        else:
+            bot.send_message(message.chat.id, "У вас нет текущих аренд.")
+    else:
+        bot.send_message(message.chat.id, "Извините, не удалось найти пользователя.")
+
+# Обработка кнопки "Обратная связь"
 @bot.message_handler(func=lambda message: message.text == "Обратная связь")
 def request_feedback(message):
     msg = bot.send_message(message.chat.id, "Пожалуйста, введите ваше имя:")
@@ -150,7 +219,7 @@ def process_message_step(message, name, email, subject):
     save_feedback(name, email, subject, feedback_message)
     bot.send_message(message.chat.id, "Спасибо за ваше сообщение! Мы свяжемся с вами.")
 
-#Отправка сообщения в БД
+# Отправка сообщения в БД
 def save_feedback(name, email, subject, message):
     platform = "ТГ Бот"
     with pyodbc.connect(CONNECTION_STRING) as conn:
