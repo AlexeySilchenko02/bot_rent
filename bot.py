@@ -26,10 +26,18 @@ def get_places_info():
 # Основные кнопки
 def make_reply_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
-    places_button = KeyboardButton("Места")  # Переименовываем кнопку
+    places_button = KeyboardButton("Места")
     personal_account_button = KeyboardButton("Личный кабинет")
     feedback_button = KeyboardButton("Обратная связь")
     markup.add(places_button, personal_account_button, feedback_button)
+    return markup
+
+# Кнопки для просмотра информации о месте и отзывах
+def make_place_keyboard():
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
+    reviews_button = KeyboardButton("Посмотреть отзывы")
+    back_button = KeyboardButton("Вернуться назад")
+    markup.add(reviews_button, back_button)
     return markup
 
 # Кнопки для личного кабинета
@@ -37,7 +45,7 @@ def make_personal_account_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
     balance_button = KeyboardButton("Посмотреть баланс")
     transactions_button = KeyboardButton("Посмотреть транзакции")
-    my_rentals_button = KeyboardButton("Мои аренды")  # Добавляем кнопку "Мои аренды"
+    my_rentals_button = KeyboardButton("Мои аренды")
     back_button = KeyboardButton("Вернуться назад")
     markup.add(balance_button, transactions_button, my_rentals_button, back_button)
     return markup
@@ -59,6 +67,8 @@ def handle_message(message):
         send_welcome(message)
     elif message.text == "Обратная связь":
         request_feedback(message)
+    elif message.text == "Посмотреть отзывы":
+        request_place_id(message)
     elif message.text == "Посмотреть баланс":
         send_balance_info(message)
     elif message.text == "Посмотреть транзакции":
@@ -68,9 +78,9 @@ def handle_message(message):
     else:
         bot.send_message(message.chat.id, "Извините, я не понял команду.")
 
-# Кнопки которые будут вызваны после активации "Личный кабинет"
+# Функция для запроса номера телефона пользователя
 def request_phone_number(message):
-    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     contact_button = KeyboardButton("Поделиться номером телефона", request_contact=True)
     back_button = KeyboardButton("Вернуться назад")
     markup.add(contact_button, back_button)
@@ -88,13 +98,13 @@ def handle_contact(message):
     else:
         bot.send_message(message.chat.id, "Извините, мы не смогли найти аренды для данного номера телефона.")
 
-# Функция отправки информации о местах    
+# Функция отправки информации о местах
 def send_places_info(message):
     places = get_places_info()
     if places:
         # Создание заголовка таблицы
         reply = "<b>Название места - Статус - Размер - Цена - Категория</b>\n"
-        for place in places:
+        for i, place in enumerate(places, start=1):
             # Определение статуса места
             if place[4]:  # Если InRent == True
                 start_date = place[2].split(' ')[0]  # Извлечение даты начала аренды
@@ -104,9 +114,11 @@ def send_places_info(message):
                 status = "Свободно"
             
             # Добавление информации о месте в ответ
-            reply += f"{place[1]} - {status} - {place[7]} м² - {place[5]} руб. - {place[8]}\n"
+            reply += f"{i}. {place[1]} - {status} - {place[7]} м² - {place[5]} руб. - {place[8]}\n"
         
         bot.send_message(message.chat.id, reply, parse_mode='HTML')
+        markup = make_place_keyboard()
+        bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
     else:
         bot.send_message(message.chat.id, "Информация о местах отсутствует.")
 
@@ -229,6 +241,42 @@ def save_feedback(name, email, subject, message):
             VALUES (?, ?, ?, ?, ?, '0')
         """, (name, email, subject, message, platform))
         conn.commit()
+
+# Функция для запроса ID места у пользователя
+def request_place_id(message):
+    msg = bot.send_message(message.chat.id, "Введите номер места для просмотра отзывов:")
+    bot.register_next_step_handler(msg, send_reviews_info)
+
+# Функция для отправки отзывов о месте
+def send_reviews_info(message):
+    place_index = int(message.text) - 1  # Минус один, так как индекс в списке начинается с нуля
+    places = get_places_info()
+    if 0 <= place_index < len(places):
+        place_id = places[place_index][0]
+        reviews = get_reviews_by_place_id(place_id)
+        if reviews:
+            reply = "<b>Последние отзывы:</b>\n"
+            for review in reviews:
+                reply += f"{review[0]}: {review[1]} (Оценка: {review[2]}/10)\n"
+            bot.send_message(message.chat.id, reply, parse_mode='HTML')
+        else:
+            bot.send_message(message.chat.id, "Отзывов нет.")
+    else:
+        bot.send_message(message.chat.id, "Неверный номер места. Пожалуйста, попробуйте снова.")
+
+# Функция для получения отзывов по ID места
+def get_reviews_by_place_id(place_id):
+    with pyodbc.connect(CONNECTION_STRING) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT [Name], [Comment], [Rating]
+            FROM [db_aa7919_aplicationrent].[dbo].[Reviews]
+            WHERE [PlaceId] = ?
+            ORDER BY [Id] DESC
+            OFFSET 0 ROWS FETCH NEXT 20 ROWS ONLY
+        """, place_id)
+        reviews = cursor.fetchall()
+    return reviews
 
 # Запуск бота
 bot.infinity_polling()
