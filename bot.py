@@ -3,11 +3,10 @@ import pyodbc
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
 # Токен, который выдал BotFather
-TOKEN = ''
 bot = telebot.TeleBot(TOKEN)
 
 # Строка подключения к базе данных
-CONNECTION_STRING = "Driver={SQL Server};Server=SQL9001.site4now.net;Database=db_aa7919_aplicationrent;Uid=db_aa7919_aplicationrent_admin;Pwd=Alex2356;"
+CONNECTION_STRING = "Driver={SQL Server};Server=SQL9001.site4now.net;Database=db_aa7919_aplicationrent;Uid=db_aa7919_aplicationrent_admin;Pwd=password_db;"
 
 # Словарь для хранения состояния пользователей
 user_states = {}
