@@ -3,7 +3,7 @@ import pyodbc
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
 # Токен, который выдал BotFather
-TOKEN = '7057353634:AAGGWWGGAmcczpSLUj2_DP7TtCVWOnMH9rM'
+TOKEN = ''
 bot = telebot.TeleBot(TOKEN)
 
 # Строка подключения к базе данных
